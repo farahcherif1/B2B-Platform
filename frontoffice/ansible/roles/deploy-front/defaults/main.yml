@@ -1,0 +1,4 @@
+project_version: develop
+project_name: eventizer-cepex-frontend
+host_name: dev.b2b.eventizer.io
+project_dir: "/front/{{ project_name }}/{{ project_version }}"

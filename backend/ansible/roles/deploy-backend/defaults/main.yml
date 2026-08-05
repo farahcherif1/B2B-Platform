@@ -1,0 +1,5 @@
+project_version: develop
+project_name: eventizer-cepex-backend
+host_name: dev.api.b2b.eventizer.io
+pgadmin_host_name: postgres.b2b.eventizer.io
+project_dir: "/server/{{ project_name }}/{{ project_version }}"

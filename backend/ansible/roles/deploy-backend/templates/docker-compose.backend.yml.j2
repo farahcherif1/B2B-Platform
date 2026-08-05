@@ -1,0 +1,64 @@
+
+services:
+  postgres:
+    image: postgres:15.2-alpine
+    container_name: postgres_container2
+    restart: always
+    environment:
+      POSTGRES_USER: {{ lookup('env','POSTGRES_USER') }}
+      POSTGRES_PASSWORD: {{ lookup('env','POSTGRES_PASSWORD') }}
+      POSTGRES_DB: {{ lookup('env','POSTGRES_DB') }}
+    volumes:
+      - cepex_postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "admin@example.com"
+      PGADMIN_DEFAULT_PASSWORD: "admin_password"
+    depends_on:
+      - postgres
+    networks:
+      - default
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=nginx-proxy"
+      - "traefik.http.routers.pgadmin-web.entrypoints=https"
+      - "traefik.http.routers.pgadmin-web.rule=Host(`{{pgadmin_host_name}}`)"
+      - "traefik.http.routers.pgadmin-web.tls=true"
+      - "traefik.http.routers.pgadmin-web.tls.certresolver=letsencrypt"
+      - "traefik.http.services.pgadmin-web.loadbalancer.server.port=80"
+  
+
+  cepex_backend:
+    image: "{{ lookup('env','IMAGE_NAME') }}"
+    container_name: "{{ project_name }}"
+    restart: always
+    env_file:
+      - ".env"
+    environment:
+      VIRTUAL_HOST: "{{ host_name }}"
+      LETSENCRYPT_HOST: "{{ host_name }}"
+      LETSENCRYPT_EMAIL: "{{ letsencrypt_email }}"
+
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=nginx-proxy"
+      - "traefik.http.routers.{{ project_name }}-{{project_version}}-web.entrypoints=https"
+      - "traefik.http.routers.{{ project_name }}-{{project_version}}-web.rule=Host(`{{ host_name }}`)"
+      - "traefik.http.routers.{{ project_name }}-{{project_version}}-web.tls=true"
+      - "traefik.http.routers.{{ project_name }}-{{project_version}}-web.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.{{ project_name }}-{{project_version}}-web.middlewares=security-headers"
+      - "traefik.http.services.{{ project_name }}-{{project_version}}-web.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.{{ project_name }}-{{project_version}}-web.headers.customRequestHeaders.X-Forwarded-Host={{ host_name }}"
+    networks:
+      - default
+networks:
+  default:
+    external:
+      name: "{{ docker_network }}"
+

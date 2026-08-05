@@ -1,0 +1,19 @@
+import { IsString, IsEmail, IsNotEmpty } from 'class-validator';
+
+export class UserDto {
+  @IsString()
+  @IsNotEmpty()
+  id: string;
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  email: string;
+
+  @IsString()
+  Function: string;
+  @IsString()
+  Company: string;
+}

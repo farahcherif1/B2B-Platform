@@ -1,0 +1,483 @@
+<script>
+import Vertical from "@/layouts/vertical.vue";
+import FicheParticipant from "./fiche-participant.vue";
+import EventService from "../../services/event.service";
+import { MonthEnum } from "../../enum/enums";
+import Swal from "sweetalert2";
+
+export default {
+  name: "ParticipationList",
+  data() {
+    return {
+      showFiche: false,
+      filter: {
+        page: this.nbPage,
+        limit: 6,
+        searchQuery: null,
+        createDate: null,
+        curentparticipant: {},
+        role: "All",
+        Pays: "All",
+      },
+      participants: [],
+      nbPage: 1,
+      itemsPerPage: 5,
+      pages: [],
+      months: Object.values(MonthEnum),
+      curentparticipant: {},
+      checkClicked: false,
+      allChecked: false,
+      file : null,
+      total: 0,
+    };
+  },
+  components: {
+    Vertical,
+    FicheParticipant,
+  },
+
+  async mounted() {
+    await EventService.getEventApplications(this.$route.params.id,this.filter).then(
+      (response) => {
+        this.participants = response.data.data;
+        this.total = response.data.meta.total;
+
+      },
+      (error) => {
+        console.log(error);
+      },
+
+    );
+  },
+
+  computed: {
+    displayedPosts() {
+      return this.paginate(this.participants);
+    },
+
+  },
+  watch: {
+    nbPage() {
+      this.filter.page = this.nbPage;
+      this.Filter();
+    },
+    posts() {
+      this.setPages();
+    },
+  },
+  created() {
+    this.setPages();
+  },
+  filters: {
+    trimWords(value) {
+      return value.split(" ").splice(0, 20).join(" ") + "...";
+    },
+  },
+
+  methods: {
+
+    async Filter() {
+      await EventService.getEventApplications(this.$route.params.id,this.filter).then(
+        (response) => {
+          this.participants = response.data.data;
+        }
+      );
+    },
+
+    deleteApplication(application){
+      Swal.fire({
+        title: "Êtes-vous sûr?",
+        text: "Vous ne pourrez pas revenir en arrière!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonText: "Oui, supprimez-le!",
+        cancelButtonText: "Non, annuler!",
+      }).then((result) => {
+        if (result.value) {
+          EventService.deleteApplication(application.id).then(() => {
+            Swal.fire("Supprimé!", "L'application a été supprimé.", "success");
+            this.participants = this.participants.filter(
+              (item) => item.id !== application.id
+            );
+            if(this.participants.length === 0){
+              this.nbPage = this.nbPage - 1;
+            }
+            this.total = this.total - 1;
+            
+          });
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+          Swal.fire(
+            "Annulé",
+            "L'application n'a pas été supprimé :)",
+            "error"
+          );
+        }
+      });
+    },
+
+    async importParticipants(event) {
+      this.file = event.target.files[0];
+      if(this.file){
+        const formData = new FormData();
+        formData.append("file", this.file);
+        await EventService.importParticipants(this.$route.params.id, formData).then(
+          (response) => {
+            console.log(response);
+          }
+        );
+      event.target.files = null;
+      this.file = null;
+      }
+      
+    },
+    
+    checkAll() {
+      let checkboxes = document.querySelectorAll("input[type=checkbox]");
+      if (checkboxes[0].checked) {
+        for (let index = 1; index < checkboxes.length; index++) {
+          checkboxes[index].checked = true;
+        }
+        this.allChecked = true;
+      } else {
+        for (let index = 1; index < checkboxes.length; index++) {
+          checkboxes[index].checked = false;
+        }
+        this.allChecked = false;
+      }
+    },
+    replaceDate(date) {
+      if(!date) return;
+      date = date.slice(0, 10);
+      date = date.split("-");
+      return `${date[2]} ${this.months[parseInt(date[1]) - 1]} ${date[0]}`;
+    },
+    handelClick(participant) {
+      if (!this.checkClicked) {
+        this.curentparticipant = participant;
+        this.showFiche = true;
+      }
+      this.checkClicked = false;
+    },
+
+    clickOnCheck() {
+      this.checkClicked = true;
+      let checkboxes = document.querySelectorAll("input[type=checkbox]");
+      let checked = true;
+      for (let index = 1; index < checkboxes.length; index++) {
+        if (!checkboxes[index].checked) {
+          checked = false;
+          break;
+        }
+      }
+      if (checked) {
+        checkboxes[0].checked = true;
+      } else {
+        checkboxes[0].checked = false;
+      }
+    },
+
+    setPages() {
+      let numberOfPages = Math.ceil(this.participants.length / this.perPage);
+      this.pages = [];
+      for (let index = 1; index <= numberOfPages; index++) {
+        this.pages.push(index);
+      }
+    },
+    paginate(data) {
+      let page = this.page;
+      let perPage = this.perPage;
+      let from = page * perPage - perPage;
+      let to = page * perPage;
+      return data.slice(from, to);
+    },
+    onSort(column) {
+      this.direction = this.direction === "asc" ? "desc" : "asc";
+      const sortedArray = [...this.participants];
+      sortedArray.sort((a, b) => {
+        const res = a[column] < b[column] ? -1 : a[column] > b[column] ? 1 : 0;
+        return this.direction === "asc" ? res : -res;
+      });
+      this.participants = sortedArray;
+    },
+  },
+};
+</script>
+
+<template>
+  <Vertical>
+    <FicheParticipant
+      :show="showFiche"
+      @close="showFiche = false"
+      :currentParticipant="curentparticipant"
+    >
+    </FicheParticipant>
+    <BRow>
+      <BCol lg="12">
+        <BCard no-body>
+          <BCardBody>
+            <BRow class="align-items-center">
+              <BCol sm="6">
+                <h5>Liste des participants</h5>
+              </BCol>
+              <BCol sm="6" class="d-flex justify-content-end">
+                <router-link :to="`/event-register/${this.$route.params.id}`">
+                  <BButton variant="success" class="waves-effect waves-light"
+                    >Ajouter</BButton
+                  >
+                </router-link>
+                <div class="flex-shrink-0 ml-3" >
+                      <input class="form-control d-none" type="file" id="formFile" accept=".xlsx, .xls"
+                      @change="importParticipants"
+                      />
+                      <label for="formFile" class="btn btn-danger"><i class="ri-upload-2-fill me-1 align-bottom"></i>
+                        Import
+                      </label>
+                </div>
+              </BCol>
+            </BRow>
+            <BRow class="mt-3 justify-content-between">
+              <BCol lg="5" sm="12">
+                <div>
+                  <input
+                    type="text"
+                    class="form-control"
+                    id="search"
+                    placeholder="Rechercher par ID, nom du participant, ..."
+                    v-model="filter.searchQuery"
+                  />
+                </div>
+              </BCol>
+              <BCol lg="2">
+                <div>
+                  <input
+                    type="date"
+                    class="form-control"
+                    id="Select date"
+                    placeholder="select date"
+                    v-model="filter.createDate"
+                  />
+                </div>
+              </BCol>
+              <BCol lg="2">
+                <select
+                  class="form-select mb-3"
+                  aria-label=".form-select-lg example"
+                  v-model="filter.role"
+                >
+                  <option value="All">All</option>
+                  <option value="1">One</option>
+                  <option value="2">Two</option>
+                  <option value="3">Three</option>
+                </select>
+              </BCol>
+              <BCol lg="2">
+                <select
+                  class="form-select mb-3"
+                  aria-label=".form-select-lg example"
+                  v-model="filter.Pays"
+                >
+                  <option value="All">All</option>
+                  <option value="1">One</option>
+                  <option value="2">Two</option>
+                  <option value="3">Three</option>
+                </select>
+              </BCol>
+              <BCol lg="1">
+                <BButton
+                  variant="success"
+                  class="waves-effect waves-light w-full"
+                  @click="Filter"
+                >
+                  <i class="ri-equalizer-fill me-2 align-bottom d-block"></i>
+
+                  Filter
+                </BButton>
+              </BCol>
+            </BRow>
+            <BRow>
+              <BCol sm="12">
+                <BCard no-body>
+                  <BCardBody>
+                    <div class="table-responsive table-card">
+                      <table
+                        class="table table-hover table-borderless table-centered align-middle table-nowrap mb-0"
+                      >
+                        <thead class="table-light text-muted">
+                          <tr>
+                            <th scope="col" style="width: 46px">
+                              <div class="form-check">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  value=""
+                                  id="cardtableCheck"
+                                  @click="checkAll"
+                                  :checked="allChecked"
+                                />
+                                <label
+                                  class="form-check-label"
+                                  for="cardtableCheck"
+                                ></label>
+                              </div>
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="currency_name"
+                              scope="col"
+                              @click="onSort('id')"
+                            >
+                              ID
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="current_value"
+                              scope="col"
+                              @click="onSort('FirstName')"
+                            >
+                              PARTICIPANT
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="pairs"
+                              scope="col"
+                              @click="onSort('OrganisationName')"
+                            >
+                              ORGANISATION
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="high"
+                              scope="col"
+                              @click="onSort('DateInscription')"
+                            >
+                              DATE INSCRI
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="low"
+                              scope="col"
+                              @click="onSort('ParticipationType')"
+                            >
+                              TYPE
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="market_cap"
+                              scope="col"
+                              @click="onSort('Ville')"
+                            >
+                              PAYS
+                            </th>
+                            <th
+                              class="sort"
+                              data-sort="market_cap"
+                              scope="col"
+                              @click="onSort('country')"
+                            >
+                              MEETINGS
+                            </th>
+
+                            <th scope="col">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr
+                            v-for="(participant, index) in this.participants"
+                            :key="index"
+                          >
+                            <td>
+                              <div class="form-check" @click="clickOnCheck">
+                                <input
+                                  class="form-check-input"
+                                  type="checkbox"
+                                  value=""
+                                  id="cardtableCheck01"
+                                />
+                                <label
+                                  class="form-check-label"
+                                  for="cardtableCheck01"
+                                ></label>
+                              </div>
+                            </td>
+                            <td>
+                              <p class="fw-medium link-primary m-0">
+                                #{{ participant.user?.id }}
+                              </p>
+                            </td>
+                            <td>
+                              <div class="d-flex align-items-center">
+                                <div class="flex-shrink-0 me-2">
+                                  <img
+                                    src="@/assets/images/users/avatar-1.jpg"
+                                    alt=""
+                                    class="avatar-xs rounded-circle"
+                                  />
+                                </div>
+                                <div class="flex-grow-1">
+                                  {{ participant.FirstName }}
+                                  {{ participant.LastName }}
+                                </div>
+                              </div>
+                            </td>
+                            <td>{{ participant.OrganisationName }}</td>
+                            <td>
+                              <span class="text-success">{{
+                                replaceDate(participant.DateInscription)
+                              }}</span>
+                            </td>
+                            <td>{{ participant.ParticipationType }}</td>
+                            <td>
+                              <BBadge
+                                variant="success-subtle"
+                                class="bg-success-subtle text-success"
+                                >{{ participant.Ville }}</BBadge
+                              >
+                            </td>
+                            <td>
+                              <h5 class="fs-14 fw-medium mb-0">
+                                5.0<span class="text-muted fs-11 ms-1"
+                                  >(61 votes)</span
+                                >
+                              </h5>
+                            </td>
+                            <td>
+                              <i
+                                @click="handelClick(participant)"
+
+                                class="ri-eye-fill me-2 align-bottom text-muted cursor-pointer"
+                              ></i>
+                              <i @click="deleteApplication(participant)"
+                                class="ri-delete-bin-5-fill me-2 align-bottom text-muted cursor-pointer"
+                              ></i>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </BCardBody>
+                </BCard>
+              </BCol>
+            </BRow>
+            <BRow>
+              <BCol class="d-flex justify-content-end">
+                <BPagination
+                  v-if="this.total > itemsPerPage"
+                  v-model="nbPage"
+                  pills
+                  :total-rows="this.total"
+                  :per-page="itemsPerPage+1"
+                  prev-text="Previous"
+                  next-text="Next"
+                  hide-goto-end-buttons="true"
+                  class="pagination-separated d-flex-wrap m-5 mt-0"
+                />
+              </BCol>
+            </BRow>
+          </BCardBody>
+        </BCard>
+      </BCol>
+    </BRow>
+  </Vertical>
+</template>
+
+<style></style>
